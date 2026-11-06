@@ -104,7 +104,8 @@ class QuerydslAwareRootResourceInformationHandlerMethodArgumentResolver
 	private Optional<Pair<QuerydslPredicateExecutor<?>, Predicate>> getRepositoryAndPredicate(
 			QuerydslPredicateExecutor<?> repository, Class<?> domainType, Map<String, String[]> parameters) {
 
-		Map<String, String[]> filteredParameters = filterByJacksonVisibility(domainType, parameters);
+		Map<String, String[]> filteredParameters =
+				filterByJacksonVisibility(domainType, parameters);
 
 		TypeInformation<?> type = TypeInformation.of(domainType);
 
@@ -121,25 +122,53 @@ class QuerydslAwareRootResourceInformationHandlerMethodArgumentResolver
 	 * be available as server-side filter keys via Querydsl's default permit-all bindings, and Jackson-renamed
 	 * properties (e.g. {@code @JsonProperty("renamed")}) would not be addressable under their public alias.
 	 */
-	private Map<String, String[]> filterByJacksonVisibility(Class<?> domainType, Map<String, String[]> parameters) {
+	private Map<String, String[]> filterByJacksonVisibility(
+			Class<?> domainType, Map<String, String[]> parameters) {
 
-		MappedJacksonProperties properties = jacksonPropertiesLookup.apply(domainType);
-
+		MappedJacksonProperties properties =
+				jacksonPropertiesLookup.apply(domainType);
 		if (properties == null) {
 			return parameters;
 		}
-
-		Map<String, String[]> filtered = new LinkedHashMap<>(parameters.size());
+		Map<String, String[]> filtered =
+				new LinkedHashMap<>(parameters.size());
 
 		for (Entry<String, String[]> entry : parameters.entrySet()) {
 
-			PersistentProperty<?> property = properties.getPersistentProperty(entry.getKey());
+			String[] segments = entry.getKey().split("\\.", -1);
 
-			if (property != null) {
-				filtered.put(property.getName(), entry.getValue());
+			MappedJacksonProperties currentProperties = properties;
+			StringBuilder resolvedPath = new StringBuilder();
+			boolean visible = true;
+
+			for (int i = 0; i < segments.length; i++) {
+				if (segments[i].isEmpty()) {
+					visible = false;
+					break;
+				}
+				PersistentProperty<?> property =
+						currentProperties.getPersistentProperty(segments[i]);
+				if (property == null) {
+					visible = false;
+					break;
+				}
+				if (i > 0) {
+					resolvedPath.append(".");
+				}
+				resolvedPath.append(property.getName());
+				if (i < segments.length - 1) {
+					currentProperties =
+							jacksonPropertiesLookup.apply(property.getActualType());
+					if (currentProperties == null) {
+						visible = false;
+						break;
+					}
+				}
+			}
+			if (visible) {
+				filtered.put(resolvedPath.toString(), entry.getValue());
 			}
 		}
-
 		return filtered;
 	}
 
