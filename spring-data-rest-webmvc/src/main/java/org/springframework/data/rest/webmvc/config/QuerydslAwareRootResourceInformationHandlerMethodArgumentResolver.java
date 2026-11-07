@@ -51,6 +51,7 @@ import com.querydsl.core.types.Predicate;
  *
  * @author Oliver Gierke
  * @author Mark Paluch
+ * @author Deepak Suresh
  * @since 2.4
  */
 class QuerydslAwareRootResourceInformationHandlerMethodArgumentResolver
